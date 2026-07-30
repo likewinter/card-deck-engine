@@ -8,7 +8,11 @@ use Likewinter\CardDeck\Card;
 use Likewinter\CardDeck\DeckBuilder;
 use Likewinter\CardDeck\DrawMode;
 use Likewinter\CardDeckEngine\Definition\DeckComposition;
+use Likewinter\CardDeckEngine\Definition\FamilyKind;
 use Likewinter\CardDeckEngine\Definition\GameDefinition;
+use Likewinter\CardDeckEngine\Family\FamilyHandler;
+use Likewinter\CardDeckEngine\Family\TrickTaking\TrickTakingHandler;
+use Likewinter\CardDeckEngine\Move\Move;
 use Likewinter\CardDeckEngine\State\GameState;
 use Random\Engine\Mt19937;
 use Random\Engine\Secure;
@@ -49,6 +53,32 @@ final class Engine
             phase: $firstPhase->id(),
             turn: 0,
         );
+    }
+
+    /**
+     * The legal moves for the current actor in the current phase.
+     *
+     * @return list<Move>
+     */
+    public static function legalMoves(GameState $state): array
+    {
+        return self::handlerFor($state->definition)->legalMoves($state);
+    }
+
+    /**
+     * Apply a move, returning the next immutable state.
+     */
+    public static function apply(GameState $state, Move $move): GameState
+    {
+        return self::handlerFor($state->definition)->apply($state, $move);
+    }
+
+    private static function handlerFor(GameDefinition $definition): FamilyHandler
+    {
+        return match ($definition->meta->family) {
+            FamilyKind::TrickTaking => new TrickTakingHandler(),
+            default => throw new \InvalidArgumentException("Unsupported family: {$definition->meta->family->value}"),
+        };
     }
 
     /**

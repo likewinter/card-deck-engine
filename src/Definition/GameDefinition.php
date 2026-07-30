@@ -33,4 +33,15 @@ final readonly class GameDefinition
             throw new \InvalidArgumentException('A game needs at least one phase');
         }
     }
+
+    public function phase(string $id): ?Phase
+    {
+        foreach ($this->phases as $phase) {
+            if ($phase->id() === $id) {
+                return $phase;
+            }
+        }
+
+        return null;
+    }
 }
