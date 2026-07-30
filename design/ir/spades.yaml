@@ -1,0 +1,93 @@
+# ============================================================================
+# Spades — hand-authored IR sketch.
+#
+# DISCUSSION ARTIFACT, not engine code. This is the engine-facing intermediate
+# representation (IR): the validated, serializable contract between "whoever
+# authors a game" and "the runtime that plays it." The end-user authoring
+# surface (forms / mini-language) would *produce* this — users never see it.
+#
+# Everything is written out explicitly here so we can see the full schema.
+# In the real variant model, `extends: trick-taking` would inherit most of
+# the boilerplate (turn order, trick structure, trick resolution) and a
+# concrete game would only spell out its deltas.
+# ============================================================================
+
+meta:
+  name: spades
+  family: trick-taking        # base template this game builds on
+  # extends: trick-taking     # <- variant model: inherit a known-good base
+
+players:
+  count: 4                    # fixed; could also be { min: N, max: M }
+  order: clockwise            # seating / turn direction
+
+deck:
+  - standard52                # composition; Spades uses no jokers
+
+deal:
+  to: all
+  cards: all                  # deal the whole deck -> 13 each
+  mode: one_by_one            # maps to DrawMode::OneByOne
+  # face: up                  # default; `down` for games like War
+
+# ----------------------------------------------------------------------------
+# The backbone: phases form a state machine. Each phase says what action
+# happens, who acts, and how we leave it (`then`). Loops are expressed by
+# pointing `then` back at an earlier phase plus an `end` condition.
+# ----------------------------------------------------------------------------
+phases:
+
+  - id: bidding
+    action: bid
+    each_player_in: turn_order
+    bid:
+      min: 0                  # 0 is the special "nil" bid
+      max: 13
+    then: play
+
+  - id: play
+    action: play_card
+    structure: tricks
+    tricks: 13
+    trump: spades
+    lead:
+      first: left_of_dealer
+      then: trick_winner
+    legal_play:
+      - follow_suit_if_able   # built-in predicate (friendly sugar)
+      # ...expanded, to reveal the underlying expression language:
+      # - when:  hand.has_suit(led_suit)
+      #   require: card.suit == led_suit
+    # spades_broken: true     # optional rule: can't lead spades until broken
+    then: score
+
+  - id: score
+    action: tally
+    then: bidding             # loop back for the next round...
+    # ...until the `end` condition below fires.
+
+# ----------------------------------------------------------------------------
+# Resolution: who wins a trick. Inherited from the trick-taking template;
+# shown explicitly so the schema is visible.
+# ----------------------------------------------------------------------------
+resolution:
+  trick_winner:
+    - highest_of: trump       # highest spade, if any spade was played
+    - else: highest_of_led_suit
+
+# ----------------------------------------------------------------------------
+# Scoring: mostly declarative, with conditional bits (nil success/failure,
+# bid-made-vs-not) that the engine must evaluate against play results.
+# ----------------------------------------------------------------------------
+scoring:
+  per_bid_trick: 10           # +10 for each trick bid, if the bid is made
+  overtrick: 1                # +1 per bag (overtrick)
+  nil:
+    success: 100              # bid 0 and took exactly 0 tricks
+    failure: -100             # bid 0 but took at least one trick
+  # bags_penalty: { every: 10, points: -100 }   # optional advanced rule
+  target: 500                 # game ends when a player reaches 500
+
+end:
+  when: score >= target
+  winner: highest_score

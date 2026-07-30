@@ -1,0 +1,122 @@
+# ============================================================================
+# Texas Hold'em — hand-authored IR sketch, used to STRESS-TEST the schema
+# we inferred from Spades. Same section spine, zero changes allowed at first.
+# Every place the Spades-shaped schema fails is marked `# CRACK:` — those
+# notes are the real output of this exercise.
+# ============================================================================
+
+meta:
+  name: texas-holdem
+  family: poker               # CRACK #1: a *different family* than Spades.
+                              #   Families are a real axis, not one template.
+  # extends: poker
+
+players:
+  count: { min: 2, max: 10 }  # OK: schema hinted a {min,max} range. Fine.
+  order: clockwise
+
+deck:
+  - standard52
+
+# ----------------------------------------------------------------------------
+# CRACK #2: Spades' `deal` was "N cards to all, once." Poker deals PRIVATE
+# hole cards to each player AND SHARED community cards to a table "board,"
+# staged across phases. `deal` needs: target (which named stack), visibility
+# (private vs shared), and timing (which phase). The library already models
+# named stacks on the Table — the IR is *behind* the library here.
+# ----------------------------------------------------------------------------
+deal:
+  - to: each_player
+    cards: 2
+    visibility: private       # hole cards
+    at: preflop
+  - to: board                 # shared community stack
+    cards: 3
+    visibility: shared
+    at: flop                  # revealed later, not at start
+  - to: board
+    cards: 1
+    at: turn
+  - to: board
+    cards: 1
+    at: river
+
+# ----------------------------------------------------------------------------
+# CRACK #3: forced action before play. The Spades schema has no slot for
+# blinds/antes — bets posted before any decision. Needs a pre-phase step.
+# ----------------------------------------------------------------------------
+antes:
+  blinds:
+    small: 1
+    big: 2
+    position: left_of_dealer
+
+phases:
+  # --------------------------------------------------------------------------
+  # CRACK #4 (the big one): a betting street is NOT "one action, then advance."
+  # It's a looping sub-protocol — players act in turn (check/call/bet/raise/
+  # fold) until the action is even and every active player has matched. The
+  # Spades phase model (action + `then`) cannot say "loop until betting
+  # closes." Phases need a TYPE, and `betting_round` is a type with its own
+  # internal loop and close condition.
+  # --------------------------------------------------------------------------
+  - id: preflop
+    type: betting_round
+    actions: [fold, check, call, bet, raise]
+    then: flop
+
+  - id: flop
+    reveal: board(3)          # CRACK #5: revealing staged cards at phase entry
+    type: betting_round       #   needs first-class support, tied to phases.
+    actions: [fold, check, call, bet, raise]
+    then: turn
+
+  - id: turn
+    reveal: board(1)
+    type: betting_round
+    actions: [fold, check, call, bet, raise]
+    then: river
+
+  - id: river
+    reveal: board(1)
+    type: betting_round
+    actions: [fold, check, call, bet, raise]
+    then: showdown
+
+  - id: showdown
+    type: reveal_and_compare
+    then: settle
+
+# ----------------------------------------------------------------------------
+# CRACK #6: resolution is family-specific. Spades resolves a *trick* by
+# suit/rank. Poker resolves a *hand* with a full ranking evaluator (best 5
+# of 7). These are different resolvers. `resolution` must be pluggable per
+# family, not a single trick-winner shape.
+# ----------------------------------------------------------------------------
+resolution:
+  showdown:
+    evaluator: poker_hand          # high_card .. straight_flush
+    select: best_5_of: [hole, board]
+    ties: split_pot
+
+# ----------------------------------------------------------------------------
+# CRACK #7: scoring paradigm differs. Spades accumulates points toward a
+# target via a per-round formula. Poker moves chips into a pot and awards the
+# pot to the winner(s); "score" is a chip stack, changed by pot not formula.
+# All-in side pots are their own depth (advanced).
+# ----------------------------------------------------------------------------
+scoring:
+  currency: chips
+  pot:
+    award_to: showdown_winner
+    # side_pots: true              # all-in handling (advanced)
+
+# ----------------------------------------------------------------------------
+# CRACK #8: end semantics differ. Spades = first to a target score. Poker:
+# cash games have no natural end; tournaments end last-player-standing.
+# `end` must support target-score, fixed-rounds, AND elimination.
+# ----------------------------------------------------------------------------
+end:
+  when: players_remaining == 1     # sit-and-go / tournament
+  # when: after_rounds == N        # cash / fixed-length
+  winner: last_standing

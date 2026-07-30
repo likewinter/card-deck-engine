@@ -1,0 +1,78 @@
+{
+    "name": "likewinter/card-deck-engine",
+    "description": "A generic card-game runtime: define game rules as data, play them on top of likewinter/card-deck",
+    "type": "library",
+    "require": {
+        "php": "^8.4",
+        "likewinter/card-deck": "*"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.0",
+        "pestphp/pest": "^4.2",
+        "carthage-software/mago": "^1.45"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Likewinter\\CardDeckEngine\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../card-deck",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "authors": [
+        {
+            "name": "Anton Orlov",
+            "email": "anton@pinked.ru"
+        }
+    ],
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "scripts": {
+        "test": ["Composer\\Config::disableProcessTimeout", "pest"],
+        "phpstan": "phpstan analyse --memory-limit=1G",
+        "audit": "composer audit --format=plain",
+        "coverage": ["Composer\\Config::disableProcessTimeout", "pest --coverage"],
+        "lint": "mago lint",
+        "analyze": "mago analyze",
+        "format": "mago format",
+        "format:check": "mago format --check",
+        "hooks": "git config core.hooksPath .githooks",
+        "ci": [
+            "@audit",
+            "@phpstan",
+            "@lint",
+            "@analyze",
+            "@format:check",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Run the Pest test suite",
+        "phpstan": "Run PHPStan static analysis at level 8",
+        "audit": "Check dependencies for known security vulnerabilities",
+        "coverage": "Run tests with PCOV coverage report",
+        "lint": "Run Mago linter",
+        "analyze": "Run Mago static analyzer",
+        "format": "Format PHP source with Mago",
+        "format:check": "Check formatting without modifying files",
+        "hooks": "Point git hooks at .githooks/ (run once after cloning)",
+        "ci": "Run all CI checks (audit + phpstan + lint + analyze + format + tests)"
+    }
+}

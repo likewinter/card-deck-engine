@@ -1,0 +1,96 @@
+# ============================================================================
+# Klondike Solitaire — fourth IR sketch, the deliberate edge case. Single
+# player, no opponent, no scoring competition — just a goal state. Probes
+# whether the spine (built from three multiplayer games) assumes things it
+# shouldn't. It does. The breaks here are the most instructive yet.
+#
+# `# NEW`       = concept the multiplayer games hid.
+# `# REINFORCE` = confirms an earlier finding.
+# `# ABSENT`    = a spine section that must become OPTIONAL.
+# ============================================================================
+
+meta:
+  name: klondike
+  family: solitaire             # single-player puzzle family
+  # extends: solitaire
+
+players:
+  count: 1                      # no opponent; turn order is meaningless
+  # order: (none)
+
+# ABSENT: no house/NPC actor. The `actors` section must be optional.
+# actors: (none)
+
+deck:
+  - standard52
+
+# ----------------------------------------------------------------------------
+# NEW: the state is a LAYOUT of named stacks, each with its own build/move
+# rule and visibility — far richer than "deal N to all." `deal` shrinks to
+# merely the *initial population* of this layout. The library's Stack /
+# CardInPlay / Face already model every bit of this; the IR must grow a
+# first-class `layout` to expose it.
+# ----------------------------------------------------------------------------
+layout:
+  tableau:                      # 7 piles
+    count: 7
+    build: down_alternating_color
+    empty: king_only
+    visibility: top_up          # buried cards start face-down
+  foundations:                  # 4 piles
+    count: 4
+    build: up_by_suit_from: ace
+    visibility: up
+  stock:
+    draw: 1                     # variant: draw 3
+    recycle: true
+  waste:
+    visibility: up
+
+deal:
+  - to: tableau
+    pattern: triangular         # pile i gets i cards (1..7)
+    visibility: all_down_but_top
+  - to: stock
+    cards: remaining            # the other 24
+
+phases:
+  # --------------------------------------------------------------------------
+  # NEW phase shape: a single FREE-PLAY sandbox. No turn order, no opponent
+  # response, no transitions until the goal. "Phases" collapse to one open
+  # phase offering a set of legal move types. The turn-based phase model was
+  # a multiplayer assumption; the spine needs a free-play mode too.
+  # --------------------------------------------------------------------------
+  - id: play
+    type: free_play
+    moves:
+      - move_to_foundation      # per-family move vocabulary
+      - move_to_tableau
+      - draw_from_stock
+    then: (none)                # stays open until `end` fires
+
+# ----------------------------------------------------------------------------
+# NEW: automatic triggers — effects that fire on state changes, not on player
+# decisions. Central here (auto-flip); only implicit in the others ("a trick
+# ends when four cards are played"). Needs first-class on-event support.
+# ----------------------------------------------------------------------------
+triggers:
+  - on: tableau_top_uncovered
+    do: flip_up
+
+# ABSENT: a puzzle has no comparison. `resolution` must be optional.
+# resolution: (none)
+
+# ABSENT: no points, no one to outscore. `scoring` must be optional.
+# (Move/time counts are metrics, not competition scoring.)
+# scoring: (none)
+
+# ----------------------------------------------------------------------------
+# NEW end kind: a GOAL STATE — a predicate over the board, plus a loss state
+# (stuck). Result is solved/stuck, not a ranking. `end` is family-polymorphic
+# to the point that "winner" doesn't always mean anything.
+# ----------------------------------------------------------------------------
+end:
+  win_when: foundations.all_complete      # all four A->K built
+  lose_when: no_legal_moves               # stuck with goal unmet
+  result: solved | stuck

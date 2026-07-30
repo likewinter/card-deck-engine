@@ -1,0 +1,113 @@
+# ============================================================================
+# Blackjack — third IR sketch, to triangulate the schema. Trick-taking and
+# poker were interactive multiplayer games; this is a push-your-luck game
+# against the house with additive scoring. If "spine + family dialect" still
+# holds here, the architecture is validated.
+#
+# `# NEW`      = a concept neither Spades nor Poker surfaced.
+# `# REINFORCE`= confirms a crack already found (the fix generalizes).
+# ============================================================================
+
+meta:
+  name: blackjack
+  family: push-your-luck        # a third distinct family
+  # extends: push-your-luck
+
+players:
+  count: { min: 1, max: 7 }
+  order: clockwise
+
+# NEW (minor; library is already ahead): a shoe of N decks, not one deck.
+deck:
+  - standard52
+    copies: 6                   # DeckBuilder::standard52()->times(6)
+
+# ----------------------------------------------------------------------------
+# NEW CONCEPT: a non-player actor with a fixed policy. Neither Spades nor
+# Poker had an automated participant. The engine needs a notion of ACTORS:
+# some are players (decisions come from outside), some are house/NPC (driven
+# by a declared rule). This same mechanism could later power simple bots.
+# ----------------------------------------------------------------------------
+actors:
+  dealer:
+    type: house
+    policy: hit_until: 17       # stands on 17+ (hit-soft-17 is a variant)
+
+# REINFORCE (Poker's blinds): a forced bet before the deal. Generalizes to a
+# per-hand wager.
+wager:
+  ante: required                # each player bets before cards
+
+deal:
+  # REINFORCE (Poker's visibility/staged reveal): players' cards up; dealer
+  # gets one up and one DOWN, revealed only at the dealer phase.
+  - to: each_player
+    cards: 2
+    visibility: up
+  - to: dealer
+    cards: 2
+    visibility: [up, down]      # second card is the hidden hole card
+
+phases:
+  # --------------------------------------------------------------------------
+  # NEW phase type: per-player push-your-luck loop. Each player, in turn,
+  # hits until they stand or bust — independent and self-directed. Different
+  # from trick_play (one card each) and betting_round (interactive loop that
+  # closes when action is even).
+  # --------------------------------------------------------------------------
+  - id: player_hands
+    type: hit_stand
+    each_player_in: turn_order
+    actions: [hit, stand]       # advanced: double, split, surrender
+    bust_at: 21
+    then: dealer_hand
+    # NEW (advanced): `split` forks one seat into MULTIPLE hands — breaks the
+    #   "one hand per player" assumption. State must allow N hands per seat.
+
+  # NEW phase type: an actor plays by policy, not by decision.
+  - id: dealer_hand
+    type: actor_play
+    actor: dealer               # reveal hole card, then apply hit_until:17
+    reveal: dealer(down)
+    then: compare
+
+  # NEW resolution shape: compare every player hand against the HOUSE hand —
+  # not players-vs-players (poker) or trick-by-trick (spades).
+  - id: compare
+    type: settle
+    then: wager                 # loop for the next hand...
+
+# ----------------------------------------------------------------------------
+# THIRD resolver kind: additive hand value with soft/hard aces.
+#   Spades    = trick winner by suit/rank
+#   Poker     = poker_hand ranking (best 5 of 7)
+#   Blackjack = additive total, ace as 1 or 11
+# ----------------------------------------------------------------------------
+resolution:
+  hand_value:
+    additive: true              # 2-10 face value; J/Q/K = 10
+    ace: [1, 11]                # choose best total <= 21
+  compare: vs_house
+  natural:                      # Ace + 10-value on the initial deal
+    pays: 1.5
+    beats: all_but_natural
+
+# ----------------------------------------------------------------------------
+# THIRD scoring paradigm: payout multipliers against a bankroll.
+#   Spades    = cumulative points toward a target
+#   Poker     = pot awarded to the winner(s)
+#   Blackjack = win/loss/push multiplied by the wager
+# ----------------------------------------------------------------------------
+scoring:
+  currency: chips
+  payout:
+    win: 1                      # +1x wager
+    push: 0                     # wager returned
+    loss: -1
+    natural: 1.5                # blackjack pays 3:2
+
+# REINFORCE (end-semantics variety): no target score, no elimination — a fixed
+# number of hands, or until the bankroll is gone.
+end:
+  when: hands_played == N       # or: bankroll == 0
+  # winner: most_chips          # optional; often just per-hand
