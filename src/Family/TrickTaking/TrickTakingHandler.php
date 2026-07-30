@@ -4,30 +4,30 @@ declare(strict_types=1);
 
 namespace Likewinter\CardDeckEngine\Family\TrickTaking;
 
-use Likewinter\CardDeck\Card;
-use Likewinter\CardDeck\Card\Suit;
-use Likewinter\CardDeck\RankOrder;
-use Likewinter\CardDeck\SuitOrder;
 use Likewinter\CardDeckEngine\Definition\Phases\BidPhase;
 use Likewinter\CardDeckEngine\Definition\Phases\TrickPlayPhase;
-use Likewinter\CardDeckEngine\Definition\Resolvers\TrickWinnerResolver;
 use Likewinter\CardDeckEngine\Family\FamilyHandler;
 use Likewinter\CardDeckEngine\Move\Bid;
 use Likewinter\CardDeckEngine\Move\Move;
 use Likewinter\CardDeckEngine\Move\PlayCard;
+use Likewinter\CardDeckEngine\Setup\Dealer;
 use Likewinter\CardDeckEngine\State\GameState;
+use Likewinter\CardDeckEngine\State\RoundState;
 
 /**
  * The trick-taking dialect (Spades, Hearts, Bridge, ...).
  *
- * Implements bidding, trick play with follow-suit legality, and trick
- * resolution via the library's SuitOrder. Scoring and end detection land in a
- * later phase.
+ * Orchestrates bidding, trick play, and the multi-round loop, delegating trick
+ * mechanics to TrickResolver and scoring/end detection to TrickTakingScorer.
  */
 final class TrickTakingHandler implements FamilyHandler
 {
     public function legalMoves(GameState $state): array
     {
+        if ($this->isOver($state)) {
+            return [];
+        }
+
         $phase = $state->definition->phase($state->phase);
 
         if ($phase instanceof BidPhase) {
@@ -42,6 +42,10 @@ final class TrickTakingHandler implements FamilyHandler
 
     public function apply(GameState $state, Move $move): GameState
     {
+        if ($this->isOver($state)) {
+            throw new \InvalidArgumentException('The game is over');
+        }
+
         $phase = $state->definition->phase($state->phase);
 
         if ($phase instanceof BidPhase && $move instanceof Bid) {
@@ -52,6 +56,16 @@ final class TrickTakingHandler implements FamilyHandler
         }
 
         throw new \InvalidArgumentException('Move is not legal in the current phase');
+    }
+
+    public function isOver(GameState $state): bool
+    {
+        return TrickTakingScorer::isOver($state);
+    }
+
+    public function winner(GameState $state): ?string
+    {
+        return TrickTakingScorer::winner($state);
     }
 
     // --- Bidding -----------------------------------------------------------
@@ -112,11 +126,9 @@ final class TrickTakingHandler implements FamilyHandler
 
         $moves = [];
         foreach ($state->hand($player) as $card) {
-            if (!$this->isLegalPlay($state, $card)) {
-                continue;
+            if (TrickResolver::isLegalPlay($state, $card)) {
+                $moves[] = new PlayCard($player, $card);
             }
-
-            $moves[] = new PlayCard($player, $card);
         }
 
         return $moves;
@@ -129,15 +141,15 @@ final class TrickTakingHandler implements FamilyHandler
         if ($player !== $state->currentPlayer()) {
             throw new \InvalidArgumentException("It is not {$player}'s turn to play");
         }
-        if (!$this->handContains($state->hand($player), $move->card)) {
+        if (!TrickResolver::handContains($state->hand($player), $move->card)) {
             throw new \InvalidArgumentException("{$player} does not hold that card");
         }
-        if (!$this->isLegalPlay($state, $move->card)) {
+        if (!TrickResolver::isLegalPlay($state, $move->card)) {
             throw new \InvalidArgumentException('That card is not a legal play');
         }
 
         $hands = $state->hands;
-        $hands[$player] = $this->removeCard($state->hand($player), $move->card);
+        $hands[$player] = TrickResolver::removeCard($state->hand($player), $move->card);
         $state = $state->withHands($hands);
 
         $trick = $state->round->trick;
@@ -152,30 +164,9 @@ final class TrickTakingHandler implements FamilyHandler
         return $state->withTurn(($state->turn + 1) % count($state->players));
     }
 
-    private function isLegalPlay(GameState $state, Card $card): bool
-    {
-        // Leading an empty trick: any card is legal. (The spades-broken
-        // restriction is deliberately omitted in v1.)
-        if ($state->round->trick === []) {
-            return true;
-        }
-
-        $leadSuit = $this->leadSuit($state);
-        if ($leadSuit === null) {
-            return true;
-        }
-
-        // Must follow the lead suit when able; otherwise anything goes.
-        if ($this->handHasSuit($state->hand($state->currentPlayer()), $leadSuit)) {
-            return $card->suit === $leadSuit;
-        }
-
-        return true;
-    }
-
     private function resolveTrick(GameState $state, TrickPlayPhase $phase): GameState
     {
-        $winner = $this->trickWinner($state);
+        $winner = TrickResolver::trickWinner($state);
         $tricksWon = ($state->round->tricksWon[$winner] ?? 0) + 1;
 
         $round = $state
@@ -186,134 +177,40 @@ final class TrickTakingHandler implements FamilyHandler
             ->withTricksPlayed($state->round->tricksPlayed + 1);
         $state = $state->withRound($round);
 
-        $turn = $this->playerIndex($state, $winner);
+        $turn = TrickResolver::playerIndex($state, $winner);
 
         if ($round->tricksPlayed >= $phase->tricks) {
             $next = $phase->then() ?? throw new \LogicException('Trick-play phase has no successor');
 
-            return $state->withPhase($next)->withTurn($turn);
+            return $this->tally($state->withPhase($next)->withTurn($turn));
         }
 
         return $state->withTurn($turn);
     }
 
-    private function trickWinner(GameState $state): string
-    {
-        $trick = $state->round->trick;
-        $order = $this->playOrder($state);
-        $suitOrder = $this->suitOrder($state);
-
-        $winner = $order[0] ?? throw new \LogicException('A trick has at least one card');
-        $winningCard = $trick[$winner] ?? throw new \LogicException('Trick is missing the lead card');
-        $leadSuit = $winningCard->suit;
-
-        for ($i = 1, $n = count($order); $i < $n; $i++) {
-            $player = $order[$i];
-            $card = $trick[$player] ?? throw new \LogicException('Trick is missing a played card');
-            if ($suitOrder->beats($card, $winningCard, $leadSuit)) {
-                $winner = $player;
-                $winningCard = $card;
-            }
-        }
-
-        return $winner;
-    }
-
-    // --- Helpers -----------------------------------------------------------
-
-    private function suitOrder(GameState $state): SuitOrder
-    {
-        $resolver = $state->definition->resolver;
-        $trump = $resolver instanceof TrickWinnerResolver ? $resolver->trump : null;
-        $rankOrder = RankOrder::poker();
-
-        return $trump !== null ? SuitOrder::suit($trump, $rankOrder) : SuitOrder::noTrump($rankOrder);
-    }
-
-    private function leadSuit(GameState $state): ?Suit
-    {
-        $leader = $state->round->trickLeader;
-        if ($leader === null) {
-            return null;
-        }
-
-        return ($state->round->trick[$leader] ?? null)?->suit;
-    }
+    // --- Round loop --------------------------------------------------------
 
     /**
-     * Players in the order they play to the current trick (leader first).
-     *
-     * @return list<string>
+     * Score the completed round, then either end the game or deal the next
+     * round and return to bidding.
      */
-    private function playOrder(GameState $state): array
+    private function tally(GameState $state): GameState
     {
-        $players = $state->players;
-        $leader = $state->round->trickLeader;
-        if ($leader === null) {
-            return $players;
+        $state = $state->withScores(TrickTakingScorer::scoresAfterRound($state));
+
+        if ($this->isOver($state)) {
+            return $state;
         }
 
-        $leaderIndex = $this->playerIndex($state, $leader);
-        $count = count($players);
+        $scorePhase = $state->definition->phase($state->phase);
+        $next = $scorePhase?->then() ?? throw new \LogicException('Score phase has no successor');
+        $nextRound = $state->roundNumber + 1;
 
-        $order = [];
-        for ($k = 0; $k < $count; $k++) {
-            $order[] = $players[($leaderIndex + $k) % $count];
-        }
-
-        return $order;
-    }
-
-    private function playerIndex(GameState $state, string $player): int
-    {
-        $index = array_search($player, $state->players, true);
-
-        return $index === false ? 0 : $index;
-    }
-
-    /**
-     * @param list<Card> $hand
-     */
-    private function handHasSuit(array $hand, Suit $suit): bool
-    {
-        foreach ($hand as $card) {
-            if ($card->suit === $suit) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @param list<Card> $hand
-     */
-    private function handContains(array $hand, Card $card): bool
-    {
-        foreach ($hand as $existing) {
-            if ($existing->equals($card)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @param list<Card> $hand
-     *
-     * @return list<Card>
-     */
-    private function removeCard(array $hand, Card $card): array
-    {
-        foreach ($hand as $i => $existing) {
-            if ($existing->equals($card)) {
-                unset($hand[$i]);
-
-                return array_values($hand);
-            }
-        }
-
-        return $hand;
+        return $state
+            ->withHands(Dealer::deal($state->definition, $state->players, $state->seed, $nextRound))
+            ->withRound(RoundState::fresh())
+            ->withPhase($next)
+            ->withTurn(0)
+            ->withRoundNumber($nextRound);
     }
 }

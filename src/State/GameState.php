@@ -15,6 +15,9 @@ use Likewinter\CardDeckEngine\Definition\GameDefinition;
  * keeps the state serializable and trivially cloneable for undo/replay and a
  * future authoritative server. The library's immutable value objects (Card,
  * Rank, Suit, RankOrder, SuitOrder) are still used for domain logic.
+ *
+ * `seed` and `roundNumber` make multi-round deals reproducible: round N is
+ * dealt from Mt19937(seed + N).
  */
 final readonly class GameState
 {
@@ -31,6 +34,8 @@ final readonly class GameState
         public string $phase,
         public int $turn,
         public RoundState $round = new RoundState(),
+        public ?int $seed = null,
+        public int $roundNumber = 0,
     ) {}
 
     public function currentPlayer(): string
@@ -64,6 +69,8 @@ final readonly class GameState
             phase: $this->phase,
             turn: $this->turn,
             round: $this->round,
+            seed: $this->seed,
+            roundNumber: $this->roundNumber,
         );
     }
 
@@ -80,6 +87,8 @@ final readonly class GameState
             phase: $this->phase,
             turn: $this->turn,
             round: $this->round,
+            seed: $this->seed,
+            roundNumber: $this->roundNumber,
         );
     }
 
@@ -93,6 +102,8 @@ final readonly class GameState
             phase: $phase,
             turn: $this->turn,
             round: $this->round,
+            seed: $this->seed,
+            roundNumber: $this->roundNumber,
         );
     }
 
@@ -106,6 +117,8 @@ final readonly class GameState
             phase: $this->phase,
             turn: $turn,
             round: $this->round,
+            seed: $this->seed,
+            roundNumber: $this->roundNumber,
         );
     }
 
@@ -119,6 +132,23 @@ final readonly class GameState
             phase: $this->phase,
             turn: $this->turn,
             round: $round,
+            seed: $this->seed,
+            roundNumber: $this->roundNumber,
+        );
+    }
+
+    public function withRoundNumber(int $roundNumber): self
+    {
+        return new self(
+            definition: $this->definition,
+            players: $this->players,
+            hands: $this->hands,
+            scores: $this->scores,
+            phase: $this->phase,
+            turn: $this->turn,
+            round: $this->round,
+            seed: $this->seed,
+            roundNumber: $roundNumber,
         );
     }
 }
