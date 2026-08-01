@@ -4,7 +4,7 @@
     "type": "library",
     "require": {
         "php": "^8.4",
-        "likewinter/card-deck": "*"
+        "likewinter/card-deck": "^0.7"
     },
     "require-dev": {
         "phpstan/phpstan": "^2.0",
@@ -22,17 +22,6 @@
             "Tests\\": "tests/"
         }
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../card-deck",
-            "options": {
-                "symlink": true
-            }
-        }
-    ],
-    "minimum-stability": "dev",
-    "prefer-stable": true,
     "authors": [
         {
             "name": "Anton Orlov",

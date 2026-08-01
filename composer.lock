@@ -4,15 +4,21 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "33a1bc68debe512bcdf21926062dfcc6",
+    "content-hash": "14f7c985fa8d60ab98f0dac5735d56c7",
     "packages": [
         {
             "name": "likewinter/card-deck",
-            "version": "dev-main",
-            "dist": {
-                "type": "path",
-                "url": "../card-deck",
+            "version": "0.7.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/likewinter/card-deck.git",
                 "reference": "3b9cb5b0a14a47c9631f56d8077a0c587af14da2"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/likewinter/card-deck/zipball/3b9cb5b0a14a47c9631f56d8077a0c587af14da2",
+                "reference": "3b9cb5b0a14a47c9631f56d8077a0c587af14da2",
+                "shasum": ""
             },
             "require": {
                 "php": "^8.4"
@@ -28,45 +34,7 @@
                     "Likewinter\\CardDeck\\": "src/"
                 }
             },
-            "scripts": {
-                "test": [
-                    "Composer\\Config::disableProcessTimeout",
-                    "pest"
-                ],
-                "phpstan": [
-                    "phpstan analyse --memory-limit=1G"
-                ],
-                "audit": [
-                    "composer audit --format=plain"
-                ],
-                "coverage": [
-                    "Composer\\Config::disableProcessTimeout",
-                    "pest --coverage"
-                ],
-                "lint": [
-                    "mago lint"
-                ],
-                "analyze": [
-                    "mago analyze"
-                ],
-                "format": [
-                    "mago format"
-                ],
-                "format:check": [
-                    "mago format --check"
-                ],
-                "hooks": [
-                    "git config core.hooksPath .githooks"
-                ],
-                "ci": [
-                    "@audit",
-                    "@phpstan",
-                    "@lint",
-                    "@analyze",
-                    "@format:check",
-                    "@test"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -77,10 +45,11 @@
                 }
             ],
             "description": "Card deck games library",
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/likewinter/card-deck/issues",
+                "source": "https://github.com/likewinter/card-deck/tree/0.7.2"
+            },
+            "time": "2026-07-30T00:33:10+00:00"
         }
     ],
     "packages-dev": [
@@ -4337,9 +4306,9 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "stability-flags": {},
-    "prefer-stable": true,
+    "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.4"
