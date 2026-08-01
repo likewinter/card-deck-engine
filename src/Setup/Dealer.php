@@ -40,7 +40,7 @@ final class Dealer
     private static function buildDeck(GameDefinition $definition): array
     {
         $cards = [];
-        foreach ($definition->deck->specs as $spec) {
+        foreach ($definition->deck as $spec) {
             $builder = match ($spec->composition) { DeckComposition::Standard52 => DeckBuilder::standard52() };
 
             $cards = [...$cards, ...$builder->times($spec->copies)->buildCards()];
@@ -91,7 +91,7 @@ final class Dealer
         $index = 0;
         $total = count($deck);
 
-        foreach ($definition->deal->steps as $step) {
+        foreach ($definition->deal as $step) {
             if ($step->to !== 'each_player') {
                 continue;
             }

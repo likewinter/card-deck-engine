@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Likewinter\CardDeckEngine\Engine;
+use Likewinter\CardDeckEngine\Family\TrickTaking\TrickTakingRound;
 use Likewinter\CardDeckEngine\Move\Bid;
 use Tests\Fixtures\Spades;
 
@@ -34,7 +35,9 @@ test('a bid advances the turn and records the bid', function (): void {
     expect($state->turn)->toBe(1);
     expect($state->currentPlayer())->toBe('south');
     expect($state->phase)->toBe('bidding');
-    expect($state->round->bids)->toBe(['north' => 3]);
+    $round = $state->round;
+    assert($round instanceof TrickTakingRound);
+    expect($round->bids)->toBe(['north' => 3]);
 });
 
 test('once all four bid, play begins with the bids preserved', function (): void {
@@ -47,7 +50,9 @@ test('once all four bid, play begins with the bids preserved', function (): void
 
     expect($state->phase)->toBe('play');
     expect($state->turn)->toBe(0);
-    expect($state->round->bids)->toBe(['north' => 3, 'south' => 0, 'east' => 5, 'west' => 2]);
+    $round = $state->round;
+    assert($round instanceof TrickTakingRound);
+    expect($round->bids)->toBe(['north' => 3, 'south' => 0, 'east' => 5, 'west' => 2]);
 });
 
 test('a bid outside the allowed range is rejected', function (): void {

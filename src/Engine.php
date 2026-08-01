@@ -35,6 +35,7 @@ final class Engine
     {
         self::validatePlayers($definition, $players);
 
+        $handler = self::handlerFor($definition);
         $hands = Dealer::deal($definition, $players, $seed, 0);
         $firstPhase = $definition->phases[0] ?? throw new \LogicException('A game definition has at least one phase');
 
@@ -45,6 +46,7 @@ final class Engine
             scores: array_fill_keys($players, 0),
             phase: $firstPhase->id(),
             turn: 0,
+            round: $handler->freshRound(),
             seed: $seed,
             roundNumber: 0,
         );
@@ -62,10 +64,17 @@ final class Engine
 
     /**
      * Apply a move, returning the next immutable state.
+     *
+     * When the move completes a round (the handler transitions to a
+     * round-end phase), the engine scores the round, checks the end
+     * condition, and either terminates or deals a fresh round.
      */
     public static function apply(GameState $state, Move $move): GameState
     {
-        return self::handlerFor($state->definition)->apply($state, $move);
+        $handler = self::handlerFor($state->definition);
+        $state = $handler->apply($state, $move);
+
+        return self::advanceRoundIfComplete($handler, $state);
     }
 
     public static function isOver(GameState $state): bool
@@ -87,12 +96,41 @@ final class Engine
     }
 
     /**
+     * If the handler transitioned to a round-end phase, run the lifecycle:
+     * score the round, check the end condition, and either terminate or
+     * deal a fresh round and reset.
+     */
+    private static function advanceRoundIfComplete(FamilyHandler $handler, GameState $state): GameState
+    {
+        $phase = $state->definition->phase($state->phase);
+        if ($phase === null || !$phase->isRoundEnd()) {
+            return $state;
+        }
+
+        $state = $state->withScores($handler->scoreRound($state));
+
+        if ($handler->isOver($state)) {
+            return $state;
+        }
+
+        $next = $phase->then() ?? throw new \LogicException('Round-end phase has no successor');
+        $nextRound = $state->roundNumber + 1;
+
+        return $state
+            ->withHands(Dealer::deal($state->definition, $state->players, $state->seed, $nextRound))
+            ->withRound($handler->freshRound())
+            ->withPhase($next)
+            ->withTurn(0)
+            ->withRoundNumber($nextRound);
+    }
+
+    /**
      * @param list<string> $players
      */
     private static function validatePlayers(GameDefinition $definition, array $players): void
     {
         $count = count($players);
-        $allowed = $definition->players->count;
+        $allowed = $definition->players;
 
         if (!$allowed->allows($count)) {
             throw new \InvalidArgumentException(

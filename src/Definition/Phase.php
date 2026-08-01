@@ -20,4 +20,10 @@ interface Phase
     public function then(): ?string;
 
     public function kind(): string;
+
+    /**
+     * Whether this phase ends a round: the engine scores, checks the end
+     * condition, and either terminates or deals a fresh round.
+     */
+    public function isRoundEnd(): bool;
 }

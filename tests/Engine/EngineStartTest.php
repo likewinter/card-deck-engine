@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Likewinter\CardDeck\Card;
 use Likewinter\CardDeckEngine\Engine;
+use Likewinter\CardDeckEngine\Family\TrickTaking\TrickTakingRound;
 use Likewinter\CardDeckEngine\State\GameState;
 use Tests\Fixtures\Spades;
 
@@ -67,10 +68,12 @@ test('the initial state is ready for bidding', function (): void {
     expect($state->turn)->toBe(0);
     expect($state->currentPlayer())->toBe('north');
     expect($state->scores)->toBe(['north' => 0, 'south' => 0, 'east' => 0, 'west' => 0]);
-    expect($state->round->bids)->toBe([]);
-    expect($state->round->tricksWon)->toBe([]);
-    expect($state->round->trick)->toBe([]);
-    expect($state->round->tricksPlayed)->toBe(0);
+    $round = $state->round;
+    assert($round instanceof TrickTakingRound);
+    expect($round->bids)->toBe([]);
+    expect($round->tricksWon)->toBe([]);
+    expect($round->trick)->toBe([]);
+    expect($round->tricksPlayed)->toBe(0);
 });
 
 test('start rejects a player count the game does not allow', function (): void {

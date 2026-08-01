@@ -77,8 +77,9 @@ final class TrickTakingScorer
 
     private static function roundScore(GameState $state, CumulativeScoring $scoring, string $player): int
     {
-        $bid = $state->round->bids[$player] ?? 0;
-        $tricks = $state->round->tricksWon[$player] ?? 0;
+        $round = self::round($state);
+        $bid = $round->bids[$player] ?? 0;
+        $tricks = $round->tricksWon[$player] ?? 0;
 
         if ($bid === 0) {
             return $tricks === 0 ? $scoring->nilSuccess : $scoring->nilFailure;
@@ -89,5 +90,14 @@ final class TrickTakingScorer
         }
 
         return -$bid * $scoring->perTrick;
+    }
+
+    private static function round(GameState $state): TrickTakingRound
+    {
+        $round = $state->round;
+
+        return $round instanceof TrickTakingRound
+            ? $round
+            : throw new \LogicException('Trick-taking requires a TrickTakingRound');
     }
 }

@@ -18,4 +18,9 @@ final readonly class DeckSpec
             throw new \InvalidArgumentException('Deck copies must be at least 1');
         }
     }
+
+    public static function standard52(int $copies = 1): self
+    {
+        return new self(DeckComposition::Standard52, $copies);
+    }
 }

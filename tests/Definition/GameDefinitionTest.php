@@ -16,8 +16,8 @@ test('a spades definition assembles the full IR spine', function (): void {
 
     expect($game->meta->name)->toBe('spades');
     expect($game->meta->family)->toBe(FamilyKind::TrickTaking);
-    expect($game->players->count->isFixed())->toBeTrue();
-    expect($game->players->count->min)->toBe(4);
+    expect($game->players->isFixed())->toBeTrue();
+    expect($game->players->min)->toBe(4);
     expect($game->phases)->toHaveCount(3);
     expect($game->resolver)->toBeInstanceOf(TrickWinnerResolver::class);
     expect($game->scoring)->toBeInstanceOf(CumulativeScoring::class);

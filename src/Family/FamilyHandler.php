@@ -6,6 +6,7 @@ namespace Likewinter\CardDeckEngine\Family;
 
 use Likewinter\CardDeckEngine\Move\Move;
 use Likewinter\CardDeckEngine\State\GameState;
+use Likewinter\CardDeckEngine\State\RoundState;
 
 /**
  * A family dialect: the behavior the engine delegates to for a given family.
@@ -28,4 +29,16 @@ interface FamilyHandler
     public function isOver(GameState $state): bool;
 
     public function winner(GameState $state): ?string;
+
+    /**
+     * A fresh round state for the start of a new round.
+     */
+    public function freshRound(): RoundState;
+
+    /**
+     * The cumulative scores after adding the completed round's points.
+     *
+     * @return array<string, int>
+     */
+    public function scoreRound(GameState $state): array;
 }

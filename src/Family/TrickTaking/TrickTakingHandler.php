@@ -10,7 +10,6 @@ use Likewinter\CardDeckEngine\Family\FamilyHandler;
 use Likewinter\CardDeckEngine\Move\Bid;
 use Likewinter\CardDeckEngine\Move\Move;
 use Likewinter\CardDeckEngine\Move\PlayCard;
-use Likewinter\CardDeckEngine\Setup\Dealer;
 use Likewinter\CardDeckEngine\State\GameState;
 use Likewinter\CardDeckEngine\State\RoundState;
 
@@ -68,6 +67,16 @@ final class TrickTakingHandler implements FamilyHandler
         return TrickTakingScorer::winner($state);
     }
 
+    public function freshRound(): RoundState
+    {
+        return TrickTakingRound::fresh();
+    }
+
+    public function scoreRound(GameState $state): array
+    {
+        return TrickTakingScorer::scoresAfterRound($state);
+    }
+
     // --- Bidding -----------------------------------------------------------
 
     /**
@@ -76,8 +85,9 @@ final class TrickTakingHandler implements FamilyHandler
     private function legalBids(GameState $state, BidPhase $phase): array
     {
         $player = $state->currentPlayer();
+        $round = $this->round($state);
 
-        if (array_key_exists($player, $state->round->bids)) {
+        if (array_key_exists($player, $round->bids)) {
             return [];
         }
 
@@ -99,11 +109,13 @@ final class TrickTakingHandler implements FamilyHandler
         if ($move->amount < $phase->min || $move->amount > $phase->max) {
             throw new \InvalidArgumentException("Bid must be between {$phase->min} and {$phase->max}");
         }
-        if (array_key_exists($player, $state->round->bids)) {
+
+        $round = $this->round($state);
+        if (array_key_exists($player, $round->bids)) {
             throw new \InvalidArgumentException("{$player} has already bid");
         }
 
-        $round = $state->round->withBid($player, $move->amount);
+        $round = $round->withBid($player, $move->amount);
         $state = $state->withRound($round);
 
         if (count($round->bids) === count($state->players)) {
@@ -141,20 +153,19 @@ final class TrickTakingHandler implements FamilyHandler
         if ($player !== $state->currentPlayer()) {
             throw new \InvalidArgumentException("It is not {$player}'s turn to play");
         }
-        if (!TrickResolver::handContains($state->hand($player), $move->card)) {
+        if (!$state->hasCard($player, $move->card)) {
             throw new \InvalidArgumentException("{$player} does not hold that card");
         }
         if (!TrickResolver::isLegalPlay($state, $move->card)) {
             throw new \InvalidArgumentException('That card is not a legal play');
         }
 
-        $hands = $state->hands;
-        $hands[$player] = TrickResolver::removeCard($state->hand($player), $move->card);
-        $state = $state->withHands($hands);
+        $state = $state->withoutCard($player, $move->card);
 
-        $trick = $state->round->trick;
+        $round = $this->round($state);
+        $trick = $round->trick;
         $trick[$player] = $move->card;
-        $round = $state->round->withTrick($trick)->withTrickLeader($state->round->trickLeader ?? $player);
+        $round = $round->withTrick($trick)->withTrickLeader($round->trickLeader ?? $player);
         $state = $state->withRound($round);
 
         if (count($trick) === count($state->players)) {
@@ -167,50 +178,33 @@ final class TrickTakingHandler implements FamilyHandler
     private function resolveTrick(GameState $state, TrickPlayPhase $phase): GameState
     {
         $winner = TrickResolver::trickWinner($state);
-        $tricksWon = ($state->round->tricksWon[$winner] ?? 0) + 1;
+        $round = $this->round($state);
+        $tricksWon = ($round->tricksWon[$winner] ?? 0) + 1;
 
-        $round = $state
-            ->round
+        $round = $round
             ->withTricksWon($winner, $tricksWon)
             ->withTrick([])
             ->withTrickLeader($winner)
-            ->withTricksPlayed($state->round->tricksPlayed + 1);
+            ->withTricksPlayed($round->tricksPlayed + 1);
         $state = $state->withRound($round);
 
-        $turn = TrickResolver::playerIndex($state, $winner);
+        $turn = $state->playerIndex($winner);
 
         if ($round->tricksPlayed >= $phase->tricks) {
             $next = $phase->then() ?? throw new \LogicException('Trick-play phase has no successor');
 
-            return $this->tally($state->withPhase($next)->withTurn($turn));
+            return $state->withPhase($next)->withTurn($turn);
         }
 
         return $state->withTurn($turn);
     }
 
-    // --- Round loop --------------------------------------------------------
-
-    /**
-     * Score the completed round, then either end the game or deal the next
-     * round and return to bidding.
-     */
-    private function tally(GameState $state): GameState
+    private function round(GameState $state): TrickTakingRound
     {
-        $state = $state->withScores(TrickTakingScorer::scoresAfterRound($state));
+        $round = $state->round;
 
-        if ($this->isOver($state)) {
-            return $state;
-        }
-
-        $scorePhase = $state->definition->phase($state->phase);
-        $next = $scorePhase?->then() ?? throw new \LogicException('Score phase has no successor');
-        $nextRound = $state->roundNumber + 1;
-
-        return $state
-            ->withHands(Dealer::deal($state->definition, $state->players, $state->seed, $nextRound))
-            ->withRound(RoundState::fresh())
-            ->withPhase($next)
-            ->withTurn(0)
-            ->withRoundNumber($nextRound);
+        return $round instanceof TrickTakingRound
+            ? $round
+            : throw new \LogicException('Trick-taking requires a TrickTakingRound');
     }
 }

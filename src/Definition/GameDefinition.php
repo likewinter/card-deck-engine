@@ -14,21 +14,28 @@ namespace Likewinter\CardDeckEngine\Definition;
 final readonly class GameDefinition
 {
     /**
-     * @param list<Phase>   $phases
-     * @param list<Trigger> $triggers
+     * @param list<DeckSpec>  $deck
+     * @param list<StackSpec> $layout
+     * @param list<DealStep>  $deal
+     * @param list<Phase>     $phases
+     * @param list<Trigger>   $triggers
      */
     public function __construct(
         public Meta $meta,
-        public Players $players,
-        public Deck $deck,
-        public Layout $layout,
-        public Deal $deal,
+        public PlayerCount $players,
+        public array $deck,
+        public array $layout,
+        public array $deal,
         public array $phases,
         public EndCondition $end,
+        public PlayOrder $playOrder = PlayOrder::Clockwise,
         public ?Resolver $resolver = null,
         public ?ScoringModel $scoring = null,
         public array $triggers = [],
     ) {
+        if ($deck === []) {
+            throw new \InvalidArgumentException('A deck needs at least one specification');
+        }
         if ($phases === []) {
             throw new \InvalidArgumentException('A game needs at least one phase');
         }
@@ -39,6 +46,17 @@ final readonly class GameDefinition
         foreach ($this->phases as $phase) {
             if ($phase->id() === $id) {
                 return $phase;
+            }
+        }
+
+        return null;
+    }
+
+    public function stack(string $name): ?StackSpec
+    {
+        foreach ($this->layout as $stack) {
+            if ($stack->name === $name) {
+                return $stack;
             }
         }
 

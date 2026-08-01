@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Likewinter\CardDeckEngine\State;
 
 use Likewinter\CardDeck\Card;
+use Likewinter\CardDeck\Card\Suit;
 use Likewinter\CardDeckEngine\Definition\GameDefinition;
 
 /**
@@ -33,7 +34,7 @@ final readonly class GameState
         public array $scores,
         public string $phase,
         public int $turn,
-        public RoundState $round = new RoundState(),
+        public RoundState $round,
         public ?int $seed = null,
         public int $roundNumber = 0,
     ) {}
@@ -54,6 +55,51 @@ final readonly class GameState
     public function score(string $player): int
     {
         return $this->scores[$player] ?? 0;
+    }
+
+    public function hasCard(string $player, Card $card): bool
+    {
+        foreach ($this->hand($player) as $existing) {
+            if ($existing->equals($card)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function handHasSuit(string $player, Suit $suit): bool
+    {
+        foreach ($this->hand($player) as $card) {
+            if ($card->suit === $suit) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function playerIndex(string $player): int
+    {
+        $index = array_search($player, $this->players, true);
+
+        return $index === false ? 0 : $index;
+    }
+
+    public function withoutCard(string $player, Card $card): self
+    {
+        $hand = $this->hand($player);
+        foreach ($hand as $i => $existing) {
+            if ($existing->equals($card)) {
+                unset($hand[$i]);
+                $hands = $this->hands;
+                $hands[$player] = array_values($hand);
+
+                return $this->withHands($hands);
+            }
+        }
+
+        return $this;
     }
 
     /**

@@ -43,4 +43,9 @@ final readonly class BidPhase implements Phase
     {
         return 'bid';
     }
+
+    public function isRoundEnd(): bool
+    {
+        return false;
+    }
 }

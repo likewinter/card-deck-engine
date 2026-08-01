@@ -16,19 +16,16 @@ declare(strict_types=1);
 
 use Likewinter\CardDeck\Card\Suit;
 use Likewinter\CardDeck\DrawMode;
-use Likewinter\CardDeckEngine\Definition\Deal;
 use Likewinter\CardDeckEngine\Definition\DealStep;
-use Likewinter\CardDeckEngine\Definition\Deck;
+use Likewinter\CardDeckEngine\Definition\DeckSpec;
 use Likewinter\CardDeckEngine\Definition\Ends\TargetScoreEnd;
 use Likewinter\CardDeckEngine\Definition\FamilyKind;
 use Likewinter\CardDeckEngine\Definition\GameDefinition;
-use Likewinter\CardDeckEngine\Definition\Layout;
 use Likewinter\CardDeckEngine\Definition\Meta;
 use Likewinter\CardDeckEngine\Definition\Phases\BidPhase;
 use Likewinter\CardDeckEngine\Definition\Phases\TallyPhase;
 use Likewinter\CardDeckEngine\Definition\Phases\TrickPlayPhase;
 use Likewinter\CardDeckEngine\Definition\PlayerCount;
-use Likewinter\CardDeckEngine\Definition\Players;
 use Likewinter\CardDeckEngine\Definition\Resolvers\TrickWinnerResolver;
 use Likewinter\CardDeckEngine\Definition\Scoring\CumulativeScoring;
 use Likewinter\CardDeckEngine\Definition\StackSpec;
@@ -42,10 +39,10 @@ require __DIR__ . '/../vendor/autoload.php';
 
 $spades = new GameDefinition(
     meta: new Meta('spades', FamilyKind::TrickTaking),
-    players: new Players(PlayerCount::fixed(4)),
-    deck: Deck::standard52(),
-    layout: new Layout([new StackSpec('hand', Visibility::Private, count: 4)]),
-    deal: new Deal([new DealStep(to: 'each_player', mode: DrawMode::OneByOne)]),
+    players: PlayerCount::fixed(4),
+    deck: [DeckSpec::standard52()],
+    layout: [new StackSpec('hand', Visibility::Private, count: 4)],
+    deal: [new DealStep(to: 'each_player', mode: DrawMode::OneByOne)],
     phases: [
         new BidPhase('bidding', 'play', min: 0, max: 13),
         new TrickPlayPhase('play', 'score', tricks: 13),

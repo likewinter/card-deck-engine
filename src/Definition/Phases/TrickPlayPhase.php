@@ -39,4 +39,9 @@ final readonly class TrickPlayPhase implements Phase
     {
         return 'trick-play';
     }
+
+    public function isRoundEnd(): bool
+    {
+        return false;
+    }
 }

@@ -23,7 +23,7 @@ final class TrickResolver
      */
     public static function isLegalPlay(GameState $state, Card $card): bool
     {
-        if ($state->round->trick === []) {
+        if (self::round($state)->trick === []) {
             return true;
         }
 
@@ -32,7 +32,7 @@ final class TrickResolver
             return true;
         }
 
-        if (self::handHasSuit($state->hand($state->currentPlayer()), $leadSuit)) {
+        if ($state->handHasSuit($state->currentPlayer(), $leadSuit)) {
             return $card->suit === $leadSuit;
         }
 
@@ -44,7 +44,7 @@ final class TrickResolver
      */
     public static function trickWinner(GameState $state): string
     {
-        $trick = $state->round->trick;
+        $trick = self::round($state)->trick;
         $order = self::playOrder($state);
         $suitOrder = self::suitOrder($state);
 
@@ -64,47 +64,6 @@ final class TrickResolver
         return $winner;
     }
 
-    public static function playerIndex(GameState $state, string $player): int
-    {
-        $index = array_search($player, $state->players, true);
-
-        return $index === false ? 0 : $index;
-    }
-
-    /**
-     * @param list<Card> $hand
-     */
-    public static function handContains(array $hand, Card $card): bool
-    {
-        foreach ($hand as $existing) {
-            if ($existing->equals($card)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Remove the first occurrence of a card from a hand.
-     *
-     * @param list<Card> $hand
-     *
-     * @return list<Card>
-     */
-    public static function removeCard(array $hand, Card $card): array
-    {
-        foreach ($hand as $i => $existing) {
-            if ($existing->equals($card)) {
-                unset($hand[$i]);
-
-                return array_values($hand);
-            }
-        }
-
-        return $hand;
-    }
-
     private static function suitOrder(GameState $state): SuitOrder
     {
         $resolver = $state->definition->resolver;
@@ -116,12 +75,13 @@ final class TrickResolver
 
     private static function leadSuit(GameState $state): ?Suit
     {
-        $leader = $state->round->trickLeader;
+        $round = self::round($state);
+        $leader = $round->trickLeader;
         if ($leader === null) {
             return null;
         }
 
-        return ($state->round->trick[$leader] ?? null)?->suit;
+        return ($round->trick[$leader] ?? null)?->suit;
     }
 
     /**
@@ -132,12 +92,12 @@ final class TrickResolver
     private static function playOrder(GameState $state): array
     {
         $players = $state->players;
-        $leader = $state->round->trickLeader;
+        $leader = self::round($state)->trickLeader;
         if ($leader === null) {
             return $players;
         }
 
-        $leaderIndex = self::playerIndex($state, $leader);
+        $leaderIndex = $state->playerIndex($leader);
         $count = count($players);
 
         $order = [];
@@ -148,17 +108,12 @@ final class TrickResolver
         return $order;
     }
 
-    /**
-     * @param list<Card> $hand
-     */
-    private static function handHasSuit(array $hand, Suit $suit): bool
+    private static function round(GameState $state): TrickTakingRound
     {
-        foreach ($hand as $card) {
-            if ($card->suit === $suit) {
-                return true;
-            }
-        }
+        $round = $state->round;
 
-        return false;
+        return $round instanceof TrickTakingRound
+            ? $round
+            : throw new \LogicException('Trick-taking requires a TrickTakingRound');
     }
 }

@@ -6,7 +6,7 @@ use Likewinter\CardDeck\Card;
 use Likewinter\CardDeckEngine\Engine;
 use Likewinter\CardDeckEngine\Move\PlayCard;
 use Likewinter\CardDeckEngine\State\GameState;
-use Likewinter\CardDeckEngine\State\RoundState;
+use Likewinter\CardDeckEngine\Family\TrickTaking\TrickTakingRound;
 use Tests\Fixtures\Spades;
 
 /**
@@ -24,7 +24,7 @@ function playState(array $hands, int $turn = 0): GameState
         ->withHands($hands)
         ->withPhase('play')
         ->withTurn($turn)
-        ->withRound(RoundState::fresh());
+        ->withRound(TrickTakingRound::fresh());
 }
 
 test('the leader may play any card; a follower must follow suit when able', function (): void {
@@ -76,10 +76,12 @@ test('the highest trump wins the trick and leads the next', function (): void {
     $state = Engine::apply($state, new PlayCard('east', Card::fromString('3♥')));
     $state = Engine::apply($state, new PlayCard('west', Card::fromString('4♥')));
 
-    expect($state->round->tricksWon['south'] ?? 0)->toBe(1);
-    expect($state->round->trick)->toBe([]);
-    expect($state->round->trickLeader)->toBe('south');
-    expect($state->round->tricksPlayed)->toBe(1);
+    $round = $state->round;
+    assert($round instanceof TrickTakingRound);
+    expect($round->tricksWon['south'] ?? 0)->toBe(1);
+    expect($round->trick)->toBe([]);
+    expect($round->trickLeader)->toBe('south');
+    expect($round->tricksPlayed)->toBe(1);
     expect($state->turn)->toBe(1);
 });
 
@@ -96,8 +98,10 @@ test('with no trump played, the highest lead-suit card wins', function (): void 
     $state = Engine::apply($state, new PlayCard('east', Card::fromString('2♦')));
     $state = Engine::apply($state, new PlayCard('west', Card::fromString('3♥')));
 
-    expect($state->round->tricksWon['north'] ?? 0)->toBe(1);
-    expect($state->round->trickLeader)->toBe('north');
+    $round = $state->round;
+    assert($round instanceof TrickTakingRound);
+    expect($round->tricksWon['north'] ?? 0)->toBe(1);
+    expect($round->trickLeader)->toBe('north');
     expect($state->turn)->toBe(0);
 });
 

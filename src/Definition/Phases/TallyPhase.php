@@ -35,4 +35,9 @@ final readonly class TallyPhase implements Phase
     {
         return 'tally';
     }
+
+    public function isRoundEnd(): bool
+    {
+        return true;
+    }
 }

@@ -7,7 +7,7 @@ use Likewinter\CardDeckEngine\Engine;
 use Likewinter\CardDeckEngine\Move\Bid;
 use Likewinter\CardDeckEngine\Move\PlayCard;
 use Likewinter\CardDeckEngine\State\GameState;
-use Likewinter\CardDeckEngine\State\RoundState;
+use Likewinter\CardDeckEngine\Family\TrickTaking\TrickTakingRound;
 use Tests\Fixtures\Spades;
 
 /**
@@ -24,7 +24,7 @@ function stateBeforeFinalTrick(array $bids, array $tricksWon, array $hands, arra
     $players = ['north', 'south', 'east', 'west'];
     $state = Engine::start(Spades::definition(), $players, seed: 1);
 
-    $round = RoundState::fresh();
+    $round = TrickTakingRound::fresh();
     foreach ($bids as $player => $bid) {
         $round = $round->withBid($player, $bid);
     }
@@ -138,8 +138,10 @@ test('a round that does not reach the target deals a fresh round', function (): 
     expect(Engine::isOver($state))->toBeFalse();
     expect($state->phase)->toBe('bidding');
     expect($state->roundNumber)->toBe(1);
-    expect($state->round->bids)->toBe([]);
-    expect($state->round->tricksPlayed)->toBe(0);
+    $round = $state->round;
+    assert($round instanceof TrickTakingRound);
+    expect($round->bids)->toBe([]);
+    expect($round->tricksPlayed)->toBe(0);
     foreach ($state->hands as $hand) {
         expect($hand)->toHaveCount(13);
     }
